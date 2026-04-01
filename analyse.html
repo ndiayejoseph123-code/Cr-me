@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expert Français Concours - Analyse</title>
+    <style>
+        :root { --primary: #1a252f; --accent: #d35400; --bg: #f4f7f6; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); padding: 15px; margin: 0; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border-top: 10px solid var(--primary); }
+        .header { text-align: center; margin-bottom: 20px; }
+        .progress-box { background: #eee; padding: 8px 15px; border-radius: 20px; display: inline-block; font-size: 0.9em; font-weight: bold; color: #555; }
+        .sentence-display { font-size: 1.4em; line-height: 1.6; background: #fffaf0; border: 2px dashed var(--accent); padding: 30px; border-radius: 10px; text-align: center; margin-bottom: 25px; color: var(--primary); min-height: 100px; display: flex; align-items: center; justify-content: center; }
+        .question-text { font-weight: bold; font-size: 1.15em; color: #444; margin-bottom: 20px; border-left: 4px solid var(--accent); padding-left: 10px; }
+        .options-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+        .opt-btn { padding: 16px; border: 2px solid #eaeeef; background: white; border-radius: 8px; cursor: pointer; text-align: left; transition: 0.2s; font-size: 1.1em; color: #333; }
+        .opt-btn:hover { border-color: var(--accent); background: #fff8f4; }
+        .feedback { display: none; margin-top: 20px; padding: 20px; border-radius: 8px; font-size: 1.1em; line-height: 1.6; }
+        .correct { background: #d4edda; color: #155724; border-left: 8px solid #27ae60; }
+        .wrong { background: #f8d7da; color: #721c24; border-left: 8px solid #e74c3c; }
+        .action-btn { width: 100%; padding: 20px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1.2em; font-weight: bold; margin-top: 20px; transition: 0.3s; }
+        .action-btn:hover { background: #2c3e50; transform: translateY(-2px); }
+        u { text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 5px; font-weight: bold; }
+        .explain { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(0,0,0,0.1); font-size: 0.95em; font-style: italic; opacity: 0.9; }
+        .btn-ia { width: 100%; padding: 14px; background: linear-gradient(135deg,#7c3aed,#4f46e5); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1.05em; margin-top: 12px; font-weight: bold; }
+        .btn-ia:disabled { opacity: 0.6; cursor: wait; }
+        .toast-ia { display: none; position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); background: #27ae60; color: white; padding: 12px 24px; border-radius: 25px; font-weight: bold; z-index: 9999; white-space: nowrap; }
+        .toast-ia.show { display: block; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Master Français Concours</h1>
+        <div class="progress-box" id="progress-text">Prêt pour l'examen ?</div>
+    </div>
+    <div id="game-zone">
+        <div class="sentence-display" id="display-sentence">Votre futur succès commence par cet exercice. Cliquez ci-dessous.</div>
+        <div id="quiz-ui" style="display:none;">
+            <div class="question-text" id="display-question"></div>
+            <div class="options-grid" id="options-container"></div>
+        </div>
+        <button class="action-btn" id="main-btn" onclick="prochaineQuestion()">Commencer la série</button>
+        <div id="feedback" class="feedback"></div>
+    </div>
+    <button class="btn-ia" id="btn-ia" onclick="genererIA()">🤖 Générer 10 nouvelles questions avec l'IA</button>
+</div>
+<div class="toast-ia" id="toast-ia"></div>
+
+<script>
+const DATABASE = [
+    { s: "Le maître pense [ que les élèves ont compris ].", q: "Nature de la proposition entre crochets ?", opts: ["Prop. subordonnée relative", "Prop. subordonnée conjonctive"], ans: "Prop. subordonnée conjonctive", exp: "Le mot avant le crochet est 'pense' (un VERBE). Règle : Verbe + que = Conjonctive." },
+    { s: "La mangue [ que tu manges ] est sucrée.", q: "Nature de la proposition entre crochets ?", opts: ["Prop. subordonnée relative", "Prop. subordonnée conjonctive"], ans: "Prop. subordonnée relative", exp: "Le mot avant le crochet est 'mangue' (un NOM). Règle : Nom + que = Relative." },
+    { s: "Il exige [ que le travail soit propre ].", q: "Nature de la proposition entre crochets ?", opts: ["Prop. subordonnée relative", "Prop. subordonnée conjonctive"], ans: "Prop. subordonnée conjonctive", exp: "Le mot avant est 'exige' (un VERBE). C'est une complétive." },
+    { s: "Le village [ où je suis né ] est loin d'ici.", q: "Nature de la proposition entre crochets ?", opts: ["Prop. subordonnée relative", "Prop. subordonnée conjonctive"], ans: "Prop. subordonnée relative", exp: "Le mot avant est 'village' (un NOM). 'Où' est le pronom relatif." },
+    { s: "Sidi annonce [ qu'il a réussi son examen ].", q: "Nature de la proposition entre crochets ?", opts: ["Prop. subordonnée relative", "Prop. subordonnée conjonctive"], ans: "Prop. subordonnée conjonctive", exp: "Annonce est un verbe. C'est donc une subordonnée conjonctive complétive." },
+    { s: "La règle [ que le maître utilise ] est cassée.", q: "Nature de la proposition entre crochets ?", opts: ["Prop. subordonnée relative", "Prop. subordonnée conjonctive"], ans: "Prop. subordonnée relative", exp: "Règle est un nom. C'est donc une subordonnée relative." },
+    { s: "L'élève <u>travailleur</u> réussit toujours.", q: "Fonction du mot souligné ?", opts: ["Sujet", "Épithète", "Attribut", "Apposition"], ans: "Épithète", exp: "L'adjectif est placé directement à côté du nom 'élève' sans verbe entre les deux." },
+    { s: "Dakar, <u>capitale du Sénégal</u>, est très peuplée.", q: "Fonction du groupe souligné ?", opts: ["COD", "Apposition", "Sujet", "Attribut"], ans: "Apposition", exp: "Placé entre virgules pour désigner la même réalité que le nom Dakar." },
+    { s: "La porte <u>de la classe</u> est fermée.", q: "Fonction du groupe souligné ?", opts: ["Complément du nom", "COD", "CC de Lieu"], ans: "Complément du nom", exp: "Il complète le nom 'porte' pour préciser de quelle pièce il s'agit." },
+    { s: "Cet enfant paraît <u>sage</u>.", q: "Fonction du mot souligné ?", opts: ["Épithète", "Attribut du sujet", "COD"], ans: "Attribut du sujet", exp: "Paraît est un verbe d'état. Sage exprime une qualité du sujet après ce verbe." },
+    { s: "Rama écrit <u>une lettre</u>.", q: "Fonction du groupe souligné ?", opts: ["Sujet", "COD", "COI", "CC de Manière"], ans: "COD", exp: "Rama écrit QUOI ? -> une lettre. Pas de préposition, c'est un COD." },
+    { s: "Il téléphone <u>à son père</u>.", q: "Fonction du groupe souligné ?", opts: ["COD", "COI", "COS", "Sujet"], ans: "COI", exp: "Téléphoner À QUI ? -> à son père. Présence de la préposition 'à'." },
+    { s: "Le jardinier donne de l'eau <u>aux fleurs</u>.", q: "Fonction du groupe souligné ?", opts: ["COD", "COI", "COS", "Attribut"], ans: "COS", exp: "Le verbe a déjà un COD (de l'eau). Le second complément est un COS." },
+    { s: "Assane <u>me</u> regarde.", q: "Fonction du pronom souligné ?", opts: ["Sujet", "COD", "COI"], ans: "COD", exp: "Assane regarde QUI ? -> moi (me). C'est le COD placé avant le verbe." },
+    { s: "<u>Chacun</u> doit faire son devoir.", q: "Nature du mot souligné ?", opts: ["Nom propre", "Pronom indéfini", "Adjectif indéfini"], ans: "Pronom indéfini", exp: "Il remplace des personnes de façon vague." },
+    { s: "J'ai <u>plusieurs</u> idées en tête.", q: "Nature du mot souligné ?", opts: ["Pronom indéfini", "Adjectif indéfini", "Adverbe"], ans: "Adjectif indéfini", exp: "Il accompagne et précise le nom 'idées'." },
+    { s: "Le vent souffle <u>fort</u> ce matin.", q: "Nature du mot souligné ?", opts: ["Adjectif", "Adverbe", "Nom"], ans: "Adverbe", exp: "Il modifie l'intensité du verbe souffler." },
+    { s: "Il part <u>à huit heures</u>.", q: "Fonction du groupe souligné ?", opts: ["CC de Lieu", "CC de Temps", "CC de Cause"], ans: "CC de Temps", exp: "Il part QUAND ? -> à huit heures." },
+    { s: "Sidi travaille <u>pour réussir</u>.", q: "Fonction du groupe souligné ?", opts: ["CC de Manière", "CC de But", "CC de Cause"], ans: "CC de But", exp: "Dans quel but travaille-t-il ? -> pour réussir." },
+    { s: "Nous marchons <u>dans la forêt</u>.", q: "Fonction du groupe souligné ?", opts: ["CC de Lieu", "CC de Temps", "COD"], ans: "CC de Lieu", exp: "Où marchons-nous ? -> dans la forêt." }
+];
+
+let pileQuestions = [];
+
+function melanger(tab) {
+    for (let i = tab.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [tab[i], tab[j]] = [tab[j], tab[i]];
+    }
+    return tab;
+}
+
+function prochaineQuestion() {
+    if (pileQuestions.length === 0) pileQuestions = melanger([...DATABASE]);
+    const current = pileQuestions.pop();
+    document.getElementById('feedback').style.display = 'none';
+    document.getElementById('quiz-ui').style.display = 'block';
+    document.getElementById('main-btn').style.display = 'none';
+    document.getElementById('progress-text').innerText = `Encore ${pileQuestions.length} questions avant de revoir la même !`;
+    document.getElementById('display-sentence').innerHTML = current.s;
+    document.getElementById('display-question').innerText = current.q;
+    const container = document.getElementById('options-container');
+    container.innerHTML = '';
+    [...current.opts].sort(() => Math.random() - 0.5).forEach(o => {
+        const btn = document.createElement('button');
+        btn.className = 'opt-btn';
+        btn.innerText = o;
+        btn.onclick = () => verifier(o, current.ans, current.exp);
+        container.appendChild(btn);
+    });
+}
+
+function verifier(choix, bonne, explication) {
+    const f = document.getElementById('feedback');
+    f.style.display = 'block';
+    if (choix === bonne) {
+        f.className = "feedback correct";
+        f.innerHTML = `<b>✓ EXCELLENT !</b><div class="explain">${explication}</div>`;
+    } else {
+        f.className = "feedback wrong";
+        f.innerHTML = `<b>✗ CE N'EST PAS JUSTE...</b><br>La bonne réponse était : <b>${bonne}</b>.<div class="explain">${explication}</div>`;
+    }
+    document.getElementById('quiz-ui').style.display = 'none';
+    document.getElementById('main-btn').style.display = 'block';
+    document.getElementById('main-btn').innerText = "Question Suivante";
+}
+
+// ===== MOTEUR IA =====
+function afficherToast(msg, erreur) {
+    const t = document.getElementById('toast-ia');
+    t.textContent = msg;
+    t.style.background = erreur ? '#e74c3c' : '#27ae60';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+async function genererIA() {
+    const btn = document.getElementById('btn-ia');
+    btn.disabled = true;
+    btn.textContent = '⏳ Génération en cours...';
+    try {
+        const prompt = `Tu es un expert en grammaire française pour le concours CREM au Sénégal.
+Génère exactement 10 questions d'analyse grammaticale (nature et fonction des mots) avec des phrases en contexte sénégalais/africain.
+Varie les thèmes : propositions subordonnées, fonctions du nom, compléments circonstanciels, natures des mots.
+Retourne UNIQUEMENT un tableau JSON valide, sans texte avant ni après, sans markdown.
+Format exact : {"s":"Phrase avec <u>mot souligné</u> ou [ proposition entre crochets ].","q":"Question posée ?","opts":["Option A","Option B","Option C"],"ans":"Option A","exp":"Explication pédagogique courte."}`;
+
+        const response = await fetch('/.netlify/functions/mistral', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'mistral-small-latest',
+                temperature: 0.85,
+                messages: [{ role: 'user', content: prompt }]
+            })
+        });
+        const data = await response.json();
+        let texte = data.choices[0].message.content.trim().replace(/```json|```/g, '').trim();
+        const nouvelles = JSON.parse(texte);
+        if (!Array.isArray(nouvelles) || nouvelles.length === 0) throw new Error('Format invalide');
+        pileQuestions.push(...nouvelles);
+        afficherToast('✅ ' + nouvelles.length + ' nouvelles questions ajoutées !');
+    } catch(err) {
+        afficherToast('❌ Erreur : ' + err.message, true);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🤖 Générer 10 nouvelles questions avec l\'IA';
+    }
+}
+</script>
+</body>
+</html>

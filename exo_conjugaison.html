@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exercices de Conjugaison : Temps Simples</title>
+    <style>
+        :root { --primary: #2c3e50; --accent: #27ae60; --error: #e74c3c; --info: #2980b9; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f3f6; padding: 15px; }
+        .container { max-width: 700px; margin: auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.15); border-top: 10px solid var(--primary); }
+        .score-box { display: flex; justify-content: space-between; align-items: center; background: #eee; padding: 10px 20px; border-radius: 10px; margin-bottom: 25px; font-weight: bold; }
+        #progress-bar { height: 10px; width: 0%; background: var(--accent); border-radius: 5px; margin-top: 5px; transition: 0.5s; }
+        .exercise-card { background: #fffaf0; border: 2px solid #34495e; padding: 25px; border-radius: 12px; text-align: center; }
+        .tense-badge { background: var(--info); color: white; padding: 5px 15px; border-radius: 20px; font-size: 0.9em; display: inline-block; margin-bottom: 10px; }
+        .sentence { font-size: 1.4em; margin-bottom: 20px; color: #333; }
+        .input-area { margin-bottom: 20px; }
+        .answer-input { font-size: 1.3em; padding: 12px; width: 80%; border: 3px solid var(--primary); border-radius: 8px; text-align: center; outline: none; }
+        .answer-input:focus { border-color: var(--info); }
+        .feedback { display: none; padding: 15px; border-radius: 8px; font-weight: bold; margin-bottom: 15px; }
+        .correct { background: #d4edda; color: #155724; }
+        .wrong { background: #f8d7da; color: #721c24; }
+        .action-btn { width: 100%; padding: 18px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1.2em; font-weight: bold; }
+        .next-btn { background: var(--accent); display: none; }
+        .btn-ia { width: 100%; padding: 14px; background: linear-gradient(135deg,#7c3aed,#4f46e5); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1.05em; margin-top: 12px; font-weight: bold; }
+        .btn-ia:disabled { opacity: 0.6; cursor: wait; }
+        .toast-ia { display: none; position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); background: #27ae60; color: white; padding: 12px 24px; border-radius: 25px; font-weight: bold; z-index: 9999; white-space: nowrap; }
+        .toast-ia.show { display: block; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="score-box">
+        <span>Score : <span id="score">0</span></span>
+        <span>Questions : <span id="current-count">0</span>/20</span>
+    </div>
+    <div style="width: 100%; background: #ddd; border-radius: 5px; margin-bottom: 30px;">
+        <div id="progress-bar"></div>
+    </div>
+
+    <div id="exercise-ui">
+        <div class="exercise-card">
+            <div id="tense" class="tense-badge">Chargement...</div>
+            <div id="instruction" style="font-size: 0.9em; color: #666; margin-bottom: 10px;">Conjuguez le verbe entre parenthèses :</div>
+            <div id="sentence" class="sentence">Prêt pour l'exercice ?</div>
+            <div class="input-area">
+                <input type="text" id="user-answer" class="answer-input" placeholder="Tapez ici..." autocomplete="off">
+            </div>
+            <div id="feedback" class="feedback"></div>
+            <button class="action-btn" id="check-btn" onclick="verifier()">VÉRIFIER</button>
+            <button class="action-btn next-btn" id="next-btn" onclick="nouvelleQuestion()">SUIVANT ➔</button>
+        </div>
+    </div>
+    <button class="btn-ia" id="btn-ia" onclick="genererIA()">🤖 Générer 10 nouvelles questions avec l'IA</button>
+</div>
+<div class="toast-ia" id="toast-ia"></div>
+
+<script>
+const QUESTIONS = [
+    { p: "Je (marcher) ________ sur le sable au présent.", t: "PRÉSENT", a: "marche" },
+    { p: "Tu (chanter) ________ merveilleusement hier à l'imparfait.", t: "IMPARFAIT", a: "chantais" },
+    { p: "Il (donner) ________ tout son argent l'an dernier au passé simple.", t: "PASSÉ SIMPLE", a: "donna" },
+    { p: "Nous (manger) ________ des fruits demain au futur.", t: "FUTUR", a: "mangerons" },
+    { p: "Vous (dessiner) ________ un portrait à l'imparfait.", t: "IMPARFAIT", a: "dessiniez" },
+    { p: "Elles (arriver) ________ par le train de midi au futur.", t: "FUTUR", a: "arriveront" },
+    { p: "Nous (jouer) ________ ensemble au passé simple.", t: "PASSÉ SIMPLE", a: "jouâmes" },
+    { p: "Ils (travailler) ________ dur au présent.", t: "PRÉSENT", a: "travaillent" },
+    { p: "Je (finir) ________ mes devoirs au présent.", t: "PRÉSENT", a: "finis" },
+    { p: "Tu (choisir) ________ une couleur au futur.", t: "FUTUR", a: "choisiras" },
+    { p: "Le lion (bondir) ________ soudainement au passé simple.", t: "PASSÉ SIMPLE", a: "bondit" },
+    { p: "Nous (réussir) ________ toujours grâce à l'effort à l'imparfait.", t: "IMPARFAIT", a: "réussissions" },
+    { p: "Vous (grossir) ________ à vue d'œil à l'imparfait.", t: "IMPARFAIT", a: "grossissiez" },
+    { p: "Ils (obéir) ________ aux ordres au présent.", t: "PRÉSENT", a: "obéissent" },
+    { p: "Je (rougir) ________ de honte au passé simple.", t: "PASSÉ SIMPLE", a: "rougis" },
+    { p: "Elle (fleurir) ________ au printemps prochain au futur.", t: "FUTUR", a: "fleurira" },
+    { p: "Nous (bâtir) ________ une maison au futur.", t: "FUTUR", a: "bâtirons" },
+    { p: "Vous (remplir) ________ les bouteilles au passé simple.", t: "PASSÉ SIMPLE", a: "remplîtes" },
+    { p: "Tu (guérir) ________ rapidement à l'imparfait.", t: "IMPARFAIT", a: "guérissais" },
+    { p: "Elles (pâlir) ________ de peur au présent.", t: "PRÉSENT", a: "pâlissent" }
+];
+
+let pile = [];
+let index = 0;
+let points = 0;
+let questionActuelle = null;
+
+function lancer() {
+    pile = [...QUESTIONS].sort(() => Math.random() - 0.5);
+    nouvelleQuestion();
+}
+
+function nouvelleQuestion() {
+    if (index >= 20) {
+        alert("Session terminée ! Votre score : " + points + "/20");
+        index = 0; points = 0; lancer();
+        return;
+    }
+    questionActuelle = pile[index % pile.length];
+    document.getElementById('tense').innerText = questionActuelle.t;
+    document.getElementById('sentence').innerText = questionActuelle.p;
+    document.getElementById('user-answer').value = "";
+    document.getElementById('feedback').style.display = "none";
+    document.getElementById('check-btn').style.display = "block";
+    document.getElementById('next-btn').style.display = "none";
+    document.getElementById('current-count').innerText = index + 1;
+    document.getElementById('user-answer').focus();
+}
+
+function verifier() {
+    const rep = document.getElementById('user-answer').value.trim().toLowerCase();
+    const feedback = document.getElementById('feedback');
+    feedback.style.display = "block";
+    if (rep === questionActuelle.a.toLowerCase()) {
+        points++;
+        feedback.className = "feedback correct";
+        feedback.innerText = "✓ CORRECT !";
+    } else {
+        feedback.className = "feedback wrong";
+        feedback.innerText = "✗ ERREUR. Il fallait écrire : " + questionActuelle.a;
+    }
+    index++;
+    document.getElementById('score').innerText = points;
+    document.getElementById('progress-bar').style.width = (index / 20 * 100) + "%";
+    document.getElementById('check-btn').style.display = "none";
+    document.getElementById('next-btn').style.display = "block";
+}
+
+document.getElementById('user-answer').addEventListener('keypress', function (e) {
+    if (e.key === 'Enter') {
+        if (document.getElementById('check-btn').style.display !== 'none') verifier();
+        else nouvelleQuestion();
+    }
+});
+
+lancer();
+
+// ===== MOTEUR IA =====
+function afficherToast(msg, erreur) {
+    const t = document.getElementById('toast-ia');
+    t.textContent = msg;
+    t.style.background = erreur ? '#e74c3c' : '#27ae60';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+async function genererIA() {
+    const btn = document.getElementById('btn-ia');
+    btn.disabled = true;
+    btn.textContent = '⏳ Génération en cours...';
+    try {
+        const prompt = `Tu es un expert en grammaire française pour le concours CREM au Sénégal.
+Génère exactement 10 exercices de conjugaison variés avec des contextes africains/sénégalais.
+Varie les groupes (1er, 2e, 3e) et les temps (Présent, Imparfait, Passé Simple, Futur).
+Retourne UNIQUEMENT un tableau JSON valide, sans texte avant ni après, sans markdown.
+Format exact de chaque objet : {"p":"Sidi (marcher) ________ vers la classe au présent.","t":"PRÉSENT","a":"marche"}`;
+
+        const response = await fetch('/.netlify/functions/mistral', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'mistral-small-latest',
+                temperature: 0.85,
+                messages: [{ role: 'user', content: prompt }]
+            })
+        });
+        const data = await response.json();
+        let texte = data.choices[0].message.content.trim().replace(/```json|```/g, '').trim();
+        const nouvelles = JSON.parse(texte);
+        if (!Array.isArray(nouvelles) || nouvelles.length === 0) throw new Error('Format invalide');
+        pile.push(...nouvelles);
+        afficherToast('✅ ' + nouvelles.length + ' nouvelles questions ajoutées !');
+    } catch(err) {
+        afficherToast('❌ Erreur : ' + err.message, true);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🤖 Générer 10 nouvelles questions avec l\'IA';
+    }
+}
+</script>
+</body>
+</html>

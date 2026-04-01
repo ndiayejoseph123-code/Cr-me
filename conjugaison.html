@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conjugaison Master - Préparation Concours</title>
+    <style>
+        :root { --primary: #2c3e50; --accent: #27ae60; --error: #e74c3c; --warning: #f1c40f; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f3f6; padding: 15px; }
+        .container { max-width: 850px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); border-top: 10px solid var(--primary); }
+        .score-progress-container { width: 100%; height: 25px; background: #eee; border-radius: 15px; margin-bottom: 10px; overflow: hidden; border: 1px solid #ddd; }
+        .score-bar { height: 100%; width: 0%; transition: width 0.5s, background-color 0.5s; text-align: center; color: white; font-weight: bold; font-size: 0.9em; line-height: 25px; }
+        .score-label { text-align: center; font-weight: bold; font-size: 0.85em; margin-bottom: 20px; color: #555; }
+        .progress-box { background: #eee; padding: 5px 15px; border-radius: 20px; font-size: 0.9em; font-weight: bold; margin-bottom: 20px; display: inline-block; }
+        .sentence-display { font-size: 1.4em; background: #fffaf0; border: 2px solid #34495e; padding: 25px; border-radius: 10px; text-align: center; margin-bottom: 20px; color: #333; min-height: 80px; display: flex; align-items: center; justify-content: center; }
+        .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .opt-btn { padding: 15px; border: 2px solid #ecf0f1; background: #f8f9fa; border-radius: 8px; cursor: pointer; font-size: 1.1em; font-weight: bold; color: var(--primary); }
+        .opt-btn:hover { border-color: var(--primary); background: #fff; }
+        .feedback { display: none; margin-top: 20px; padding: 15px; border-radius: 8px; font-size: 1.05em; line-height: 1.5; }
+        .correct { background: #d4edda; color: #155724; border-left: 5px solid var(--accent); }
+        .wrong { background: #f8d7da; color: #721c24; border-left: 5px solid var(--error); }
+        .action-btn { width: 100%; padding: 18px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1.1em; margin-top: 20px; }
+        .explain { font-size: 0.9em; margin-top: 8px; font-style: italic; border-top: 1px solid rgba(0,0,0,0.1); padding-top: 8px; }
+        .btn-ia { width: 100%; padding: 14px; background: linear-gradient(135deg,#7c3aed,#4f46e5); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1.05em; margin-top: 12px; font-weight: bold; }
+        .btn-ia:disabled { opacity: 0.6; cursor: wait; }
+        .toast-ia { display: none; position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); background: #27ae60; color: white; padding: 12px 24px; border-radius: 25px; font-weight: bold; z-index: 9999; white-space: nowrap; }
+        .toast-ia.show { display: block; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div style="text-align: center;">
+        <h1>Master Conjugaison</h1>
+        <div class="score-progress-container">
+            <div id="score-bar" class="score-bar" style="background-color: var(--error);">0%</div>
+        </div>
+        <div class="score-label" id="score-text">Précision : 0%</div>
+        <div class="progress-box" id="progress">60 questions dans la série</div>
+    </div>
+    <div class="sentence-display" id="sentence">Prêt pour le défi des verbes ?</div>
+    <div id="quiz-ui" style="display:none;">
+        <div style="font-weight: bold; margin-bottom: 15px; color: #666; text-align: center;" id="instruction">Conjuguez correctement :</div>
+        <div class="options-grid" id="options"></div>
+    </div>
+    <button class="action-btn" id="btn-next" onclick="chargerQuestion()">Démarrer l'entraînement</button>
+    <div id="feedback" class="feedback"></div>
+    <button class="btn-ia" id="btn-ia" onclick="genererIA()">🤖 Générer 10 nouvelles questions avec l'IA</button>
+</div>
+<div class="toast-ia" id="toast-ia"></div>
+
+<script>
+const DATABASE = [
+    { s: "Nous (manger) ........ ensemble tous les midis.", opts: ["mangeons", "mangons"], ans: "mangeons", exp: "Pour les verbes en -ger, on garde le 'e' après le 'g' devant 'o' pour faire le son [j]." },
+    { s: "Il (finir) ........ son travail rapidement.", opts: ["finit", "finis"], ans: "finit", exp: "Verbe du 2ème groupe au présent : -is, -is, -it." },
+    { s: "Tu (prendre) ........ le bus tous les jours.", opts: ["prend", "prends"], ans: "prends", exp: "Verbes en -dre : -ds, -ds, -d." },
+    { s: "Vous (faire) ........ beaucoup d'efforts.", opts: ["faisez", "faites"], ans: "faites", exp: "Attention au verbe faire : vous faites, ils font." },
+    { s: "Il (vouloir) ........ réussir son concours.", opts: ["veut", "veuxt"], ans: "veut", exp: "Vouloir au présent : je veux, tu veux, il veut." },
+    { s: "Sidi (marcher) ........ quand soudain il tomba.", opts: ["marchait", "marcha"], ans: "marchait", exp: "On utilise l'imparfait pour une action secondaire ou une description." },
+    { s: "Le lion (bondir) ........ sur sa proie.", opts: ["bondissait", "bondit"], ans: "bondit", exp: "Le passé simple exprime une action soudaine et achevée." },
+    { s: "Demain, je vous (envoyer) ........ le dossier.", opts: ["enverrai", "enverrais"], ans: "enverrai", exp: "Futur simple : terminaison -rai." },
+    { s: "Si j'avais de l'argent, j' (acheter) ........ une voiture.", opts: ["achèterai", "achèterais"], ans: "achèterais", exp: "Conditionnel (après un 'si' à l'imparfait) : terminaison -rais." },
+    { s: "Quand tu es arrivé, j' (finir) ........ déjà.", opts: ["avais fini", "ai fini"], ans: "avais fini", exp: "Le plus-que-parfait exprime une action antérieure à une autre action passée." },
+    { s: "(Manger) ........ ta soupe !", opts: ["Mange", "Manges"], ans: "Mange", exp: "À l'impératif, les verbes du 1er groupe ne prennent pas de 's' à la 2ème pers. du singulier." },
+    { s: "(Aller) ........ -y maintenant !", opts: ["Va", "Vas"], ans: "Vas", exp: "On ajoute un 's' à 'Va' devant 'y' ou 'en'." },
+    { s: "Vous (dire) ........ la vérité.", opts: ["disez", "dites"], ans: "dites", exp: "Dire au présent : vous dites." },
+    { s: "Je (recevoir) ........ un cadeau.", opts: ["reçois", "recois"], ans: "reçois", exp: "N'oubliez pas la cédille devant le 'o'." },
+    { s: "Il faut que nous (partir) ........ .", opts: ["partions", "partons"], ans: "partions", exp: "Subjonctif présent." },
+    { s: "Il (vivre) ........ à Dakar.", opts: ["vit", "vis"], ans: "vit", exp: "Verbe vivre : il vit." },
+    { s: "Nous (appeler) ........ le médecin.", opts: ["appelons", "appellons"], ans: "appelons", exp: "Un seul 'l' car le son 'e' est court devant -ons." },
+    { s: "Il (appeler) ........ son ami.", opts: ["appele", "appelle"], ans: "appelle", exp: "Deux 'l' car on entend le son 'è' devant un 'e' muet." },
+    { s: "Ils (boire) ........ de l'eau fraîche.", opts: ["boivent", "boient"], ans: "boivent", exp: "Présent de boire." },
+    { s: "Ils (mourir) ........ de soif.", opts: ["meurent", "mourrent"], ans: "meurent", exp: "Le radical change au pluriel." }
+];
+
+let pile = [];
+let totalRepondu = 0;
+let totalCorrect = 0;
+
+function melanger(tab) {
+    for (let i = tab.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [tab[i], tab[j]] = [tab[j], tab[i]];
+    }
+    return tab;
+}
+
+function updateScoreBar() {
+    if (totalRepondu === 0) return;
+    const pourcent = Math.round((totalCorrect / totalRepondu) * 100);
+    const bar = document.getElementById('score-bar');
+    const txt = document.getElementById('score-text');
+    bar.style.width = pourcent + "%";
+    bar.innerText = pourcent + "%";
+    if (pourcent < 50) {
+        bar.style.backgroundColor = "var(--error)";
+        txt.innerHTML = `Précision : ${pourcent}% <span style="color:var(--error)">(Continuez à réviser !)</span>`;
+    } else if (pourcent < 80) {
+        bar.style.backgroundColor = "var(--warning)";
+        txt.innerHTML = `Précision : ${pourcent}% <span style="color:#d4ac0d">(Bonne maîtrise, encore un effort !)</span>`;
+    } else {
+        bar.style.backgroundColor = "var(--accent)";
+        txt.innerHTML = `Précision : ${pourcent}% <span style="color:var(--accent)">(Expert en conjugaison !)</span>`;
+    }
+}
+
+function chargerQuestion() {
+    if (pile.length === 0) pile = melanger([...DATABASE]);
+    const q = pile.pop();
+    document.getElementById('feedback').style.display = 'none';
+    document.getElementById('quiz-ui').style.display = 'block';
+    document.getElementById('btn-next').style.display = 'none';
+    document.getElementById('progress').innerText = "Questions restantes : " + (pile.length + 1);
+    document.getElementById('sentence').innerText = q.s;
+    const container = document.getElementById('options');
+    container.innerHTML = '';
+    q.opts.forEach(opt => {
+        const b = document.createElement('button');
+        b.className = 'opt-btn';
+        b.innerText = opt;
+        b.onclick = () => verifier(opt, q);
+        container.appendChild(b);
+    });
+}
+
+function verifier(choix, q) {
+    totalRepondu++;
+    const f = document.getElementById('feedback');
+    f.style.display = 'block';
+    if (choix === q.ans) {
+        totalCorrect++;
+        f.className = "feedback correct";
+        f.innerHTML = `<b>✓ PARFAIT !</b><br>La phrase correcte est : <i>"${q.s.replace("........", '<span style="color:var(--accent);font-weight:bold;">' + q.ans + '</span>')}"</i><div class="explain">${q.exp}</div>`;
+    } else {
+        f.className = "feedback wrong";
+        f.innerHTML = `<b>✗ FAUTE DE CONJUGAISON</b><br>La bonne forme était : <b>${q.ans}</b>.<div class="explain">${q.exp}</div>`;
+    }
+    updateScoreBar();
+    document.getElementById('quiz-ui').style.display = 'none';
+    document.getElementById('btn-next').style.display = 'block';
+    document.getElementById('btn-next').innerText = "Verbe Suivant ➔";
+}
+
+// ===== MOTEUR IA =====
+function afficherToast(msg, erreur) {
+    const t = document.getElementById('toast-ia');
+    t.textContent = msg;
+    t.style.background = erreur ? '#e74c3c' : '#27ae60';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+async function genererIA() {
+    const btn = document.getElementById('btn-ia');
+    btn.disabled = true;
+    btn.textContent = '⏳ Génération en cours...';
+    try {
+        const prompt = `Tu es un expert en grammaire française pour le concours CREM au Sénégal.
+Génère exactement 10 exercices de conjugaison à choix multiples avec des phrases en contexte sénégalais/africain.
+Varie les groupes et les temps (présent, imparfait, passé simple, futur, conditionnel, subjonctif, impératif).
+Inclus des verbes irréguliers du 3e groupe.
+Retourne UNIQUEMENT un tableau JSON valide, sans texte avant ni après, sans markdown.
+Format exact : {"s":"Phrase avec ........ à compléter.","opts":["choix1","choix2"],"ans":"choix1","exp":"Explication pédagogique courte."}`;
+
+        const response = await fetch('/.netlify/functions/mistral', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'mistral-small-latest',
+                temperature: 0.85,
+                messages: [{ role: 'user', content: prompt }]
+            })
+        });
+        const data = await response.json();
+        let texte = data.choices[0].message.content.trim().replace(/```json|```/g, '').trim();
+        const nouvelles = JSON.parse(texte);
+        if (!Array.isArray(nouvelles) || nouvelles.length === 0) throw new Error('Format invalide');
+        pile.push(...nouvelles);
+        afficherToast('✅ ' + nouvelles.length + ' nouvelles questions ajoutées !');
+    } catch(err) {
+        afficherToast('❌ Erreur : ' + err.message, true);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🤖 Générer 10 nouvelles questions avec l\'IA';
+    }
+}
+</script>
+</body>
+</html>

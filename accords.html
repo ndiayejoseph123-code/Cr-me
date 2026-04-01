@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expert Orthographe & Accords</title>
+    <style>
+        :root { --primary: #2c3e50; --accent: #27ae60; --error: #e74c3c; --warning: #f1c40f; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f4f7f6; padding: 15px; }
+        .container { max-width: 850px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); border-top: 8px solid var(--primary); }
+        .score-progress-container { width: 100%; height: 25px; background: #eee; border-radius: 15px; margin-bottom: 10px; overflow: hidden; border: 1px solid #ddd; }
+        .score-bar { height: 100%; width: 0%; transition: width 0.5s, background-color 0.5s; text-align: center; color: white; font-weight: bold; font-size: 0.9em; line-height: 25px; }
+        .score-label { text-align: center; font-weight: bold; font-size: 0.85em; margin-bottom: 20px; color: #555; }
+        .progress-box { background: #eee; padding: 5px 15px; border-radius: 20px; font-size: 0.9em; font-weight: bold; margin-bottom: 20px; display: inline-block; }
+        .sentence-display { font-size: 1.4em; background: #fff; border: 2px solid #ddd; padding: 25px; border-radius: 10px; text-align: center; margin-bottom: 20px; color: #333; min-height: 80px; display: flex; align-items: center; justify-content: center; }
+        .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .opt-btn { padding: 15px; border: 2px solid #ecf0f1; background: #f8f9fa; border-radius: 8px; cursor: pointer; font-size: 1.1em; font-weight: bold; color: var(--primary); }
+        .opt-btn:hover { border-color: var(--primary); background: #fff; }
+        .feedback { display: none; margin-top: 20px; padding: 15px; border-radius: 8px; font-size: 1.05em; line-height: 1.5; }
+        .correct { background: #d4edda; color: #155724; border-left: 5px solid var(--accent); }
+        .wrong { background: #f8d7da; color: #721c24; border-left: 5px solid var(--error); }
+        .action-btn { width: 100%; padding: 18px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1.1em; margin-top: 20px; }
+        .explain { font-size: 0.9em; margin-top: 8px; font-style: italic; border-top: 1px solid rgba(0,0,0,0.1); padding-top: 8px; }
+        .btn-ia { width: 100%; padding: 14px; background: linear-gradient(135deg,#7c3aed,#4f46e5); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1.05em; margin-top: 12px; font-weight: bold; }
+        .btn-ia:disabled { opacity: 0.6; cursor: wait; }
+        .toast-ia { display: none; position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); background: #27ae60; color: white; padding: 12px 24px; border-radius: 25px; font-weight: bold; z-index: 9999; white-space: nowrap; }
+        .toast-ia.show { display: block; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div style="text-align: center;">
+        <h1>Expert Orthographe & Dictée</h1>
+        <div class="score-progress-container">
+            <div id="score-bar" class="score-bar" style="background-color: var(--error);">0%</div>
+        </div>
+        <div class="score-label" id="score-text">Précision : 0% (Rouge : Travaillez encore !)</div>
+        <div class="progress-box" id="progress">55 questions disponibles</div>
+    </div>
+    <div class="sentence-display" id="sentence">Cliquez pour démarrer la série d'exercices.</div>
+    <div id="quiz-ui" style="display:none;">
+        <div style="font-weight: bold; margin-bottom: 15px; color: #666;">Choisissez la bonne forme :</div>
+        <div class="options-grid" id="options"></div>
+    </div>
+    <button class="action-btn" id="btn-next" onclick="chargerQuestion()">Commencer l'entraînement</button>
+    <div id="feedback" class="feedback"></div>
+    <button class="btn-ia" id="btn-ia" onclick="genererIA()">🤖 Générer 10 nouvelles questions avec l'IA</button>
+</div>
+<div class="toast-ia" id="toast-ia"></div>
+
+<script>
+const DATABASE = [
+    { s: "Les lettres que j'ai ........ sont arrivées.", opts: ["écrit", "écrites", "écrite"], ans: "écrites", exp: "Accord avec le COD 'lettres' placé avant avoir." },
+    { s: "Elles se sont ........ dans le jardin.", opts: ["promené", "promenés", "promenées"], ans: "promenées", exp: "Avec 'être', accord avec le sujet 'Elles'." },
+    { s: "Marie a ........ beaucoup de chansons.", opts: ["chanté", "chantés", "chantées"], ans: "chanté", exp: "Le COD est après avoir, donc pas d'accord." },
+    { s: "Les efforts qu'il a ........ ont payé.", opts: ["fait", "faits"], ans: "faits", exp: "Accord avec le COD 'efforts' placé avant." },
+    { s: "La robe qu'elle a ........ est superbe.", opts: ["choisi", "choisie"], ans: "choisie", exp: "Accord avec le COD 'robe' au féminin." },
+    { s: "Ils sont ........ très tard hier soir.", opts: ["rentré", "rentrés"], ans: "rentrés", exp: "Auxiliaire être : accord avec le sujet 'Ils'." },
+    { s: "Il ........ mal à la tête.", opts: ["a", "à"], ans: "a", exp: "C'est le verbe avoir (il avait mal)." },
+    { s: "Nous allons ........ la plage.", opts: ["a", "à"], ans: "à", exp: "Préposition de lieu." },
+    { s: "Le chien ........ cache sous la table.", opts: ["ce", "se"], ans: "se", exp: "Pronom devant un verbe." },
+    { s: "........ livre appartient à Sidi.", opts: ["ce", "se"], ans: "ce", exp: "Démonstratif pour désigner l'objet." },
+    { s: "Tu préfères le thé ........ le café ?", opts: ["ou", "où"], ans: "ou", exp: "Indique un choix." },
+    { s: "........ as-tu rangé tes clés ?", opts: ["ou", "où"], ans: "où", exp: "Indique le lieu." },
+    { s: "Il a perdu ........ chaussures.", opts: ["ses", "ces"], ans: "ses", exp: "Possessif : les siennes." },
+    { s: "Regarde ........ magnifiques fleurs.", opts: ["ses", "ces"], ans: "ces", exp: "Démonstratif : on les montre." },
+    { s: "........ une chance incroyable.", opts: ["c'est", "s'est"], ans: "c'est", exp: "Présentatif (cela est)." },
+    { s: "Le petit garçon ........ endormi.", opts: ["c'est", "s'est"], ans: "s'est", exp: "Devant un verbe." },
+    { s: "Je ........ souhaite une bonne fête.", opts: ["leur", "leurs"], ans: "leur", exp: "Devant un verbe, 'leur' est invariable." },
+    { s: "Ils ont pris ........ bagages.", opts: ["leur", "leurs"], ans: "leurs", exp: "Devant un nom pluriel, 'leur' prend un 's'." },
+    { s: "Il y a des ........ dans ce jardin.", opts: ["caillous", "cailloux"], ans: "cailloux", exp: "Exception des mots en -ou." },
+    { s: "Le groupe d'élèves ........ dans la cour.", opts: ["joue", "jouent"], ans: "joue", exp: "Sujet principal : 'le groupe'." },
+    { s: "Toi et moi ........ de bons amis.", opts: ["êtes", "sommes"], ans: "sommes", exp: "Toi + moi = Nous." },
+    { s: "Elle est ........ de son travail.", opts: ["fiers", "fière"], ans: "fière", exp: "Féminin singulier." },
+    { s: "Elle est ........ émue.", opts: ["tout", "toute"], ans: "tout", exp: "Devant une voyelle, 'tout' est invariable." },
+    { s: "J'ai ........ de mon mieux.", opts: ["fait", "fais"], ans: "fait", exp: "Participe passé." },
+    { s: "Elle s'est ........ la main.", opts: ["coupé", "coupée"], ans: "coupé", exp: "COD 'main' après, pas d'accord." },
+    { s: "La main qu'elle s'est ........ .", opts: ["coupé", "coupée"], ans: "coupée", exp: "COD 'main' avant, accord." },
+    { s: "Un ........ homme.", opts: ["vieil", "vieux"], ans: "vieil", exp: "Devant une voyelle." },
+    { s: "C'est le ........ .", opts: ["mieux", "meilleur"], ans: "meilleur", exp: "Adjectif qualificatif." },
+    { s: "C'est ........ qui parle.", opts: ["moi", "je"], ans: "moi", exp: "Pronom tonique après c'est." }
+];
+
+let pile = [];
+let totalRepondu = 0;
+let totalCorrect = 0;
+
+function melanger(tab) {
+    for (let i = tab.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [tab[i], tab[j]] = [tab[j], tab[i]];
+    }
+    return tab;
+}
+
+function updateScoreBar() {
+    if (totalRepondu === 0) return;
+    const pourcent = Math.round((totalCorrect / totalRepondu) * 100);
+    const bar = document.getElementById('score-bar');
+    const txt = document.getElementById('score-text');
+    bar.style.width = pourcent + "%";
+    bar.innerText = pourcent + "%";
+    if (pourcent < 50) {
+        bar.style.backgroundColor = "var(--error)";
+        txt.innerHTML = `Précision : ${pourcent}% <span style="color:var(--error)">(Travaillez encore !)</span>`;
+    } else if (pourcent < 80) {
+        bar.style.backgroundColor = "var(--warning)";
+        txt.innerHTML = `Précision : ${pourcent}% <span style="color:#d4ac0d">(Pas mal, continuez !)</span>`;
+    } else {
+        bar.style.backgroundColor = "var(--accent)";
+        txt.innerHTML = `Précision : ${pourcent}% <span style="color:var(--accent)">(Excellent ! Niveau Concours)</span>`;
+    }
+}
+
+function chargerQuestion() {
+    if (pile.length === 0) pile = melanger([...DATABASE]);
+    const q = pile.pop();
+    document.getElementById('feedback').style.display = 'none';
+    document.getElementById('quiz-ui').style.display = 'block';
+    document.getElementById('btn-next').style.display = 'none';
+    document.getElementById('progress').innerText = "Encore " + pile.length + " questions dans la pile";
+    document.getElementById('sentence').innerText = q.s.replace("........", "_______");
+    const container = document.getElementById('options');
+    container.innerHTML = '';
+    q.opts.forEach(opt => {
+        const b = document.createElement('button');
+        b.className = 'opt-btn';
+        b.innerText = opt;
+        b.onclick = () => verifier(opt, q);
+        container.appendChild(b);
+    });
+}
+
+function verifier(choix, q) {
+    totalRepondu++;
+    const f = document.getElementById('feedback');
+    f.style.display = 'block';
+    if (choix === q.ans) {
+        totalCorrect++;
+        f.className = "feedback correct";
+        f.innerHTML = `<b>✓ BIEN JOUÉ !</b><div class="explain">${q.exp}</div>`;
+    } else {
+        f.className = "feedback wrong";
+        f.innerHTML = `<b>✗ ERREUR</b><br>La bonne réponse était : <b>${q.ans}</b>.<div class="explain">${q.exp}</div>`;
+    }
+    updateScoreBar();
+    document.getElementById('quiz-ui').style.display = 'none';
+    document.getElementById('btn-next').style.display = 'block';
+    document.getElementById('btn-next').innerText = "Question Suivante ➔";
+}
+
+// ===== MOTEUR IA =====
+function afficherToast(msg, erreur) {
+    const t = document.getElementById('toast-ia');
+    t.textContent = msg;
+    t.style.background = erreur ? '#e74c3c' : '#27ae60';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+async function genererIA() {
+    const btn = document.getElementById('btn-ia');
+    btn.disabled = true;
+    btn.textContent = '⏳ Génération en cours...';
+    try {
+        const prompt = `Tu es un expert en grammaire française pour le concours CREM au Sénégal.
+Génère exactement 10 exercices d'orthographe et d'accords à choix multiples avec des phrases en contexte sénégalais/africain.
+Varie les thèmes : accord du participe passé, homophones (a/à, ou/où, ces/ses, leur/leurs, ce/se, etc.), pluriels irréguliers, accords sujet-verbe.
+Retourne UNIQUEMENT un tableau JSON valide, sans texte avant ni après, sans markdown.
+Format exact : {"s":"Phrase avec ........ à compléter.","opts":["choix1","choix2"],"ans":"choix1","exp":"Explication pédagogique courte."}`;
+
+        const response = await fetch('/.netlify/functions/mistral', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'mistral-small-latest',
+                temperature: 0.85,
+                messages: [{ role: 'user', content: prompt }]
+            })
+        });
+        const data = await response.json();
+        let texte = data.choices[0].message.content.trim().replace(/```json|```/g, '').trim();
+        const nouvelles = JSON.parse(texte);
+        if (!Array.isArray(nouvelles) || nouvelles.length === 0) throw new Error('Format invalide');
+        pile.push(...nouvelles);
+        afficherToast('✅ ' + nouvelles.length + ' nouvelles questions ajoutées !');
+    } catch(err) {
+        afficherToast('❌ Erreur : ' + err.message, true);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🤖 Générer 10 nouvelles questions avec l\'IA';
+    }
+}
+</script>
+</body>
+</html>

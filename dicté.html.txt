@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dictée Vocale - Entraînement sur Papier</title>
+    <style>
+        :root { --primary: #2c3e50; --accent: #27ae60; --error: #e74c3c; --warning: #f1c40f; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f3f6; padding: 15px; }
+        .container { max-width: 700px; margin: auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); border-top: 10px solid var(--primary); text-align: center; }
+        .score-progress-container { width: 100%; height: 20px; background: #eee; border-radius: 10px; margin-bottom: 5px; overflow: hidden; }
+        .score-bar { height: 100%; width: 0%; transition: width 0.5s; background-color: var(--error); }
+        .score-label { font-weight: bold; font-size: 0.9em; margin-bottom: 25px; color: #555; }
+        .speaker-zone { margin: 40px 0; }
+        .btn-speak { background: #fff; border: 3px solid var(--primary); color: var(--primary); width: 100px; height: 100px; border-radius: 50%; cursor: pointer; font-size: 40px; transition: 0.3s; display: inline-flex; align-items: center; justify-content: center; }
+        .btn-speak:hover { background: var(--primary); color: white; transform: scale(1.1); }
+        .instruction { color: #7f8c8d; font-size: 1.1em; margin-bottom: 10px; }
+        .correction-zone { display: none; background: #fff8f0; border: 2px dashed #e67e22; padding: 25px; border-radius: 10px; margin-top: 20px; }
+        .phrase-correcte { font-size: 1.5em; font-weight: bold; color: #333; margin-bottom: 15px; }
+        .action-btn { width: 100%; padding: 18px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1.2em; margin-top: 15px; font-weight: bold; }
+        .btn-valide { background: var(--accent); }
+        .btn-faute { background: var(--error); }
+        .btn-ia { width: 100%; padding: 14px; background: linear-gradient(135deg,#7c3aed,#4f46e5); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1.05em; margin-top: 12px; font-weight: bold; }
+        .btn-ia:disabled { opacity: 0.6; cursor: wait; }
+        .toast-ia { display: none; position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); background: #27ae60; color: white; padding: 12px 24px; border-radius: 25px; font-weight: bold; z-index: 9999; white-space: nowrap; }
+        .toast-ia.show { display: block; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Maître de Dictée Vocale</h1>
+    <div class="score-progress-container">
+        <div id="score-bar" class="score-bar"></div>
+    </div>
+    <div class="score-label" id="score-text">Précision : 0%</div>
+
+    <div id="setup-zone">
+        <p class="instruction">Préparez votre feuille et votre stylo.</p>
+        <button class="action-btn" onclick="nouvellePhrase()">Commencer la dictée</button>
+    </div>
+
+    <div id="dictation-zone" style="display:none;">
+        <p class="instruction">Cliquez sur le haut-parleur pour écouter la phrase :</p>
+        <div class="speaker-zone">
+            <button class="btn-speak" onclick="lirePhrase()" title="Écouter la phrase">🔊</button>
+        </div>
+        <button class="action-btn" onclick="montrerCorrection()">Afficher la correction</button>
+    </div>
+
+    <div id="correction-zone" class="correction-zone">
+        <p style="color: #e67e22; font-weight: bold;">CORRECTION :</p>
+        <div id="display-phrase" class="phrase-correcte"></div>
+        <p class="instruction">Avez-vous écrit la phrase correctement sur votre feuille ?</p>
+        <div style="display: flex; gap: 10px;">
+            <button class="action-btn btn-faute" onclick="enregistrerResultat(false)">J'ai fait des fautes</button>
+            <button class="action-btn btn-valide" onclick="enregistrerResultat(true)">Zéro faute !</button>
+        </div>
+    </div>
+    <button class="btn-ia" id="btn-ia" onclick="genererIA()">🤖 Générer 10 nouvelles phrases avec l'IA</button>
+</div>
+<div class="toast-ia" id="toast-ia"></div>
+
+<script>
+const DICTEES = [
+    "Les fleurs que j'ai cueillies ce matin sont déjà fanées.",
+    "Sidi et son frère sont partis au village pour voir leur grand-père.",
+    "Il faut que tu fasses attention aux accords du participe passé.",
+    "Les oiseaux se sont envolés dès qu'ils ont entendu ce grand bruit.",
+    "Où vas-tu ? Je vais à la boutique pour acheter du pain et du lait.",
+    "Ses amis sont venus, mais il ne leur a pas parlé longtemps.",
+    "C'est une magnifique journée, le soleil brille sur Dakar.",
+    "Les élèves sérieux finissent toujours par réussir leurs examens.",
+    "Regarde ces enfants qui jouent avec leurs nouveaux joujoux.",
+    "Nous mangerons ensemble quand vous aurez terminé votre travail.",
+    "Si j'avais su, je serais venu plus tôt pour vous aider.",
+    "Le maître a posé sa règle sur la table de la classe.",
+    "Ils croient que nous sommes déjà arrivés à destination.",
+    "Mame Anna semble fatiguée à cause de la longue marche.",
+    "Les efforts fournis portent enfin leurs fruits.",
+    "Elle s'est lavé les mains avant de passer à table.",
+    "Quels que soient vos problèmes, gardez toujours espoir.",
+    "La pluie est tombée toute la nuit sur les toits de la ville.",
+    "Il a perdu ses clés dans la cour de l'école ce matin."
+];
+
+let pile = [];
+let phraseActuelle = "";
+let totalEssais = 0;
+let totalSucces = 0;
+
+function nouvellePhrase() {
+    if (pile.length === 0) pile = [...DICTEES].sort(() => Math.random() - 0.5);
+    phraseActuelle = pile.pop();
+    document.getElementById('setup-zone').style.display = "none";
+    document.getElementById('correction-zone').style.display = "none";
+    document.getElementById('dictation-zone').style.display = "block";
+    setTimeout(lirePhrase, 500);
+}
+
+function lirePhrase() {
+    const synthese = window.speechSynthesis;
+    const prononciation = new SpeechSynthesisUtterance(phraseActuelle);
+    prononciation.lang = 'fr-FR';
+    prononciation.rate = 0.8;
+    synthese.speak(prononciation);
+}
+
+function montrerCorrection() {
+    document.getElementById('display-phrase').innerText = phraseActuelle;
+    document.getElementById('correction-zone').style.display = "block";
+    document.getElementById('dictation-zone').style.display = "none";
+}
+
+function enregistrerResultat(estCorrect) {
+    totalEssais++;
+    if (estCorrect) totalSucces++;
+    updateScore();
+    nouvellePhrase();
+}
+
+function updateScore() {
+    const pourcent = Math.round((totalSucces / totalEssais) * 100);
+    const bar = document.getElementById('score-bar');
+    const txt = document.getElementById('score-text');
+    bar.style.width = pourcent + "%";
+    if (pourcent < 50) {
+        bar.style.backgroundColor = "var(--error)";
+        txt.innerHTML = `Précision : ${pourcent}% (Insuffisant)`;
+    } else if (pourcent < 80) {
+        bar.style.backgroundColor = "var(--warning)";
+        txt.innerHTML = `Précision : ${pourcent}% (En progrès)`;
+    } else {
+        bar.style.backgroundColor = "var(--accent)";
+        txt.innerHTML = `Précision : ${pourcent}% (Excellent !)`;
+    }
+}
+
+// ===== MOTEUR IA =====
+function afficherToast(msg, erreur) {
+    const t = document.getElementById('toast-ia');
+    t.textContent = msg;
+    t.style.background = erreur ? '#e74c3c' : '#27ae60';
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+async function genererIA() {
+    const btn = document.getElementById('btn-ia');
+    btn.disabled = true;
+    btn.textContent = '⏳ Génération en cours...';
+    try {
+        const prompt = `Tu es un expert en grammaire française pour le concours CREM au Sénégal.
+Génère exactement 10 phrases de dictée de niveau concours, avec des contextes sénégalais/africains.
+Chaque phrase doit contenir au moins un piège grammatical : accord du participe passé, homophones, accord sujet-verbe complexe, ou subjonctif.
+Retourne UNIQUEMENT un tableau JSON valide de 10 chaînes de caractères, sans texte avant ni après, sans markdown.
+Exemple de format : ["Phrase 1 correctement écrite.", "Phrase 2 correctement écrite."]`;
+
+        const response = await fetch('/.netlify/functions/mistral', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'mistral-small-latest',
+                temperature: 0.85,
+                messages: [{ role: 'user', content: prompt }]
+            })
+        });
+        const data = await response.json();
+        let texte = data.choices[0].message.content.trim().replace(/```json|```/g, '').trim();
+        const nouvelles = JSON.parse(texte);
+        if (!Array.isArray(nouvelles) || nouvelles.length === 0) throw new Error('Format invalide');
+        pile.push(...nouvelles);
+        afficherToast('✅ ' + nouvelles.length + ' nouvelles phrases ajoutées !');
+    } catch(err) {
+        afficherToast('❌ Erreur : ' + err.message, true);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🤖 Générer 10 nouvelles phrases avec l\'IA';
+    }
+}
+</script>
+</body>
+</html>

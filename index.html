@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mes codes HTML</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .container {
+      background: white;
+      padding: 40px;
+      border-radius: 15px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      text-align: center;
+      max-width: 500px;
+      width: 90%;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 30px;
+      font-size: 2rem;
+    }
+    .lien {
+      display: block;
+      margin: 15px 0;
+      padding: 15px;
+      background: #4CAF50;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: bold;
+      transition: background 0.3s;
+    }
+    .lien:hover {
+      background: #45a049;
+      transform: translateY(-2px);
+    }
+    .lien:nth-child(2) { background: #2196F3; }
+    .lien:nth-child(3) { background: #FF9800; }
+    .lien:nth-child(4) { background: #9C27B0; }
+    .password-section {
+      margin-bottom: 30px;
+    }
+    .password-section input {
+      padding: 10px;
+      width: 80%;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    .password-section button {
+      padding: 10px 20px;
+      background: #e74c3c;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .password-section button:hover {
+      background: #c0392b;
+    }
+    .error {
+      color: #e74c3c;
+      margin: 10px 0;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <!-- Écran de mot de passe -->
+  <div class="container" id="password-container">
+    <h1>🔒 Accès protégé</h1>
+    <p>Entrez le mot de passe du jour pour accéder aux ressources.</p>
+    <div class="password-section">
+      <input type="password" id="password" placeholder="commandez au 777195288">
+      <button onclick="checkPassword()">Accéder</button>
+      <div id="error" class="error"></div>
+    </div>
+  </div>
+
+  <!-- Page d'accueil (cachée au départ) -->
+  <div class="container" id="main-container" style="display: none;">
+    <h1>réussir le crem</h1>
+    <a href="dicté.html" class="lien">dictée</a>
+    <a href="exo conjugaison.html" class="lien">exo conjugaison</a>
+    <a href="conjugaison.html" class="lien">conjugaison</a>
+    <a href="analyse.html" class="lien">analyse</a>
+    <a href="accords.html" class="lien">accord</a>
+  </div>
+
+  <script>
+    function getToday() {
+      const now = new Date();
+      return now.getDate(); // retourne le jour du mois (1 à 31)
+    }
+
+    function checkPassword() {
+      const input = document.getElementById('password').value.trim();
+      const error = document.getElementById('error');
+      const today = getToday();
+      const passDay = today * 24; // mot de passe = jour × 24
+
+      if (input == passDay) {
+        document.getElementById('password-container').style.display = 'none';
+        document.getElementById('main-container').style.display = 'block';
+      } else {
+        error.textContent = 'Mot de passe incorrect. Réessayez.';
+      }
+    }
+  </script>
+</body>
+</html>
